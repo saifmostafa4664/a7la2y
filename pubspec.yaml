@@ -1,0 +1,59 @@
+name: a7la2y
+description: "A new Flutter project."
+
+publish_to: 'none' 
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  
+  cupertino_icons: ^1.0.8
+  google_fonts: ^8.1.0
+  gap: ^3.0.1
+  flutter_inset_box_shadow: ^1.0.8
+  firebase_core: ^4.11.0
+  cloud_firestore: ^6.6.0
+  geolocator: ^13.0.1
+  permission_handler: ^11.0.0
+  flutter_map: ^8.0.0
+  latlong2: ^0.9.1
+  http: ^1.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  
+  flutter_lints: ^6.0.0
+
+
+flutter:
+
+ 
+  uses-material-design: true
+
+  
+  assets:
+    - assets/
+    - assets/images/
+
+ 
+  fonts:
+    - family: inter
+      fonts:
+        - asset: assets/font/Inter,Luckiest_Guy,Zain/Inter/Inter-Italic-VariableFont_opsz,wght.ttf
+        - asset: assets/font/Inter,Luckiest_Guy,Zain/Inter/Inter-VariableFont_opsz,wght.ttf
+          style: italic
+    - family: zain
+      fonts:
+        - asset: assets/font/Inter,Luckiest_Guy,Zain/Zain/Zain-Black.ttf
+        - asset: assets/font/Inter,Luckiest_Guy,Zain/Zain/Zain-Bold.ttf
+          weight: 700
+  
+  
