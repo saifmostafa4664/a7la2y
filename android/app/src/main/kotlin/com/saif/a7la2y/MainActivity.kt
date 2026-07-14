@@ -1,4 +1,4 @@
-package com.kanan.a7la2y
+package com.saifmo.a7la2y
 
 import io.flutter.embedding.android.FlutterActivity
 

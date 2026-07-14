@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kanan.a7la2y"
+    namespace = "com.saifmo.a7la2y"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -23,7 +23,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.kanan.a7la2y"
+        applicationId = "com.saifmo.a7la2y"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -38,26 +38,24 @@ android {
         }
     }
 
-    buildTypes {
-        release {
-            // تحسينات للإصدار النهائي
-            minifyEnabled = true
-            shrinkResources = true
-            
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            
-            signingConfig = signingConfigs.getByName("debug")
-        }
-        
-        debug {
-            // تحسينات للتطوير
-            minifyEnabled = false
-            shrinkResources = false
-        }
+   buildTypes {
+    release {
+        isMinifyEnabled = true
+        isShrinkResources = true
+
+        proguardFiles(
+            getDefaultProguardFile("proguard-android-optimize.txt"),
+            "proguard-rules.pro"
+        )
+
+        signingConfig = signingConfigs.getByName("debug")
     }
+
+    debug {
+        isMinifyEnabled = false
+        isShrinkResources = false
+    }
+}
     
     // تحسين سرعة البناء
     buildFeatures {
