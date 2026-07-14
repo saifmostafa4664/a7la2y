@@ -15,10 +15,8 @@ class BarberTrackingScreen extends StatefulWidget {
 class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
   final MapController _mapController = MapController();
 
-  // Cairo default until real data overrides
   static const LatLng _defaultCenter = LatLng(30.0444, 31.2357);
 
-  // Stub positions — replace with real data from Firestore/stream
   LatLng _barberPosition = const LatLng(30.0500, 31.2300);
   final LatLng _clientPosition = const LatLng(30.0390, 31.2450);
 
@@ -31,7 +29,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
     _fetchRoute(_barberPosition, _clientPosition);
   }
 
-  /// Fetches driving route from OSRM and updates the polyline.
   Future<void> _fetchRoute(LatLng start, LatLng end) async {
     setState(() => _isLoadingRoute = true);
     final points = await RoutingService.fetchRoute(start, end);
@@ -40,30 +37,25 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
       _routePoints = points;
       _isLoadingRoute = false;
     });
-    // Fit the map to show both markers
     _fitBounds();
   }
 
-  /// Updates the barber marker position (call this from a stream/listener).
   void updateBarberPosition(LatLng newPosition) {
     setState(() {
       _barberPosition = newPosition;
     });
-    // Optionally re-fetch route on significant position change
   }
 
   void _fitBounds() {
     try {
-      final bounds = LatLngBounds.fromPoints([_barberPosition, _clientPosition]);
+      final bounds = LatLngBounds.fromPoints([
+        _barberPosition,
+        _clientPosition,
+      ]);
       _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.all(60),
-        ),
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(60)),
       );
-    } catch (_) {
-      // MapController may not be ready yet
-    }
+    } catch (_) {}
   }
 
   @override
@@ -96,7 +88,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
         ),
         body: Column(
           children: [
-            // 1. كارت التوقيت العلوي العائم ذو الطابع الأسود والأبيض الفخم
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 20.0,
@@ -147,7 +138,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
               ),
             ),
 
-            // 2. مساحة مسار الخريطة التتبعية الواضحة
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -182,9 +172,8 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                             TileLayer(
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.saif.a7la2y',
+                              userAgentPackageName: 'com.kanan.a7la2y',
                             ),
-                            // Route polyline
                             if (_routePoints.isNotEmpty)
                               PolylineLayer(
                                 polylines: [
@@ -192,15 +181,15 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                                     points: _routePoints,
                                     color: const Color(0xFF1A1A1A),
                                     strokeWidth: 4.0,
-                                    borderColor: Colors.black.withValues(alpha: 0.2),
+                                    borderColor: Colors.black.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     borderStrokeWidth: 1.5,
                                   ),
                                 ],
                               ),
-                            // Markers
                             MarkerLayer(
                               markers: [
-                                // Client marker (home icon)
                                 Marker(
                                   point: _clientPosition,
                                   width: 44,
@@ -211,8 +200,9 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.14),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.14,
+                                          ),
                                           blurRadius: 10,
                                           offset: const Offset(0, 4),
                                         ),
@@ -225,7 +215,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                                     ),
                                   ),
                                 ),
-                                // Barber marker (scissors icon)
                                 Marker(
                                   point: _barberPosition,
                                   width: 44,
@@ -236,8 +225,9 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.25),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.25,
+                                          ),
                                           blurRadius: 12,
                                           offset: const Offset(0, 4),
                                         ),
@@ -254,7 +244,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                             ),
                           ],
                         ),
-                        // Loading indicator while route is being fetched
                         if (_isLoadingRoute)
                           const Center(
                             child: CircularProgressIndicator(
@@ -269,7 +258,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
               ),
             ),
 
-            // 3. اللوحة البيضاء السفلية لتفاصيل العميل وأزرار التحكم بالاتصال والإلغاء
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -327,7 +315,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                           ),
                         ],
                       ),
-                      // أزرار الاتصال والشات المينيمالست
                       Row(
                         children: [
                           CircleAvatar(
@@ -354,7 +341,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  // مؤشر خطوات الحجز الجاري تنفيذه حالياً (Steps Indicator)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -380,7 +366,6 @@ class _BarberTrackingScreenState extends State<BarberTrackingScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  // زر إلغاء الحجز المونوكروم السفلي
                   SizedBox(
                     width: double.infinity,
                     height: 50,

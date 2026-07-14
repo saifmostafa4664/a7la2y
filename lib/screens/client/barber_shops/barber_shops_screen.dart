@@ -29,7 +29,9 @@ class _BarberShopsScreenState extends State<BarberShopsScreen> {
               color: Colors.black,
               size: 16,
             ),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.pop(context);
+            },
           ),
           title: Text(
             "المحلات",

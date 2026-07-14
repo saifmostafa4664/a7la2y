@@ -1,49 +1,46 @@
 name: a7la2y
-description: "A new Flutter project."
+description: "A7la2y - Premium Barber Booking Platform"
 
-publish_to: 'none' 
+publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.7
-
+  sdk: '>=3.12.2 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
 
-  
   cupertino_icons: ^1.0.8
   google_fonts: ^8.1.0
   gap: ^3.0.1
   flutter_inset_box_shadow: ^1.0.8
-  firebase_core: ^4.11.0
-  cloud_firestore: ^6.6.0
-  geolocator: ^13.0.1
-  permission_handler: ^11.0.0
+  
+  # Location & Maps - نحتفظ بيهم للـ tracking والخرائط
+  geolocator: ^14.0.3
+  permission_handler: ^12.0.3
   flutter_map: ^8.0.0
-  latlong2: ^0.9.1
+  latlong2: ^0.10.1
+  
+  # Networking - للـ API calls لو محتاجين
   http: ^1.4.0
+  dio: ^5.10.0
+  
+  # Notifications - Local فقط بدون Firebase
+  flutter_local_notifications: ^22.0.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  
   flutter_lints: ^6.0.0
 
-
 flutter:
-
- 
   uses-material-design: true
 
-  
   assets:
     - assets/
     - assets/images/
 
- 
   fonts:
     - family: inter
       fonts:
@@ -55,5 +52,3 @@ flutter:
         - asset: assets/font/Inter,Luckiest_Guy,Zain/Zain/Zain-Black.ttf
         - asset: assets/font/Inter,Luckiest_Guy,Zain/Zain/Zain-Bold.ttf
           weight: 700
-  
-  

@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AuthFlowScreen extends StatefulWidget {
-  const AuthFlowScreen({super.key});
+  final String? prefillPhone;
+  final bool startAtOtp;
+
+  const AuthFlowScreen({super.key, this.prefillPhone, this.startAtOtp = false});
 
   @override
   State<AuthFlowScreen> createState() => _AuthFlowScreenState();
 }
 
-class _AuthFlowScreenState extends State<AuthFlowScreen> {
+class _AuthFlowScreenState extends State<AuthFlowScreen>
+    with TickerProviderStateMixin {
   final PageController _pageController = PageController();
   int _currentStep = 0;
-  final int _totalSteps = 6;
+  static const int _totalSteps = 6;
 
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
@@ -21,53 +26,135 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
     4,
     (_) => TextEditingController(),
   );
+  final List<FocusNode> _otpFocusNodes = List.generate(4, (_) => FocusNode());
 
-  String _userType = 'client';
+  String _selectedRole = 'client';
   String _selectedCountryCode = '+20';
+  bool _obscurePassword = true;
   bool _hasUploadedImage = false;
-  // ignore: unused_field
-  final _formKey = GlobalKey<FormState>();
-  void _nextStep() {
-    if (_currentStep == 0) {
-      if (_phoneController.text.length != 11) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'برجاء إدخال رقم هاتف صحيح مكون من 11 رقماً لمنع هدر كود التحقق!',
-            ),
-            backgroundColor: Colors.black,
-          ),
-        );
-        return;
-      }
+
+  late final AnimationController _fadeController;
+  late final Animation<double> _fadeAnimation;
+  late final AnimationController _slideController;
+  late final Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.06, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
+
+    if (widget.prefillPhone != null) {
+      _phoneController.text = widget.prefillPhone!;
+    }
+    if (widget.startAtOtp) {
+      _currentStep = 2;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pageController.jumpToPage(2);
+      });
     }
 
-    if (_currentStep < _totalSteps - 1) {
-      setState(() => _currentStep++);
-      _pageController.animateToPage(
-        _currentStep,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تم إنشاء الحساب بنجاح!')));
+    _fadeController.forward();
+    _slideController.forward();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _fadeController.dispose();
+    _slideController.dispose();
+    _phoneController.dispose();
+    _nameController.dispose();
+    _passwordController.dispose();
+    _emailController.dispose();
+    for (final c in _otpControllers) {
+      c.dispose();
     }
+    for (final f in _otpFocusNodes) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  void _animateToStep(int step) {
+    _fadeController.reset();
+    _slideController.reset();
+    setState(() => _currentStep = step);
+    _pageController.animateToPage(
+      step,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOutCubic,
+    );
+    _fadeController.forward();
+    _slideController.forward();
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.zain(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: Colors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _nextStep() {
+    // UI-only navigation - no authentication or registration logic
+    if (_currentStep < _totalSteps - 1) {
+      _animateToStep(_currentStep + 1);
+    }
+  }
+
+  void _finalizeRegistration() {
+    _showError('هذا تصميم واجهة مستخدم فقط - لا توجد عملية تسجيل حقيقية.');
   }
 
   void _prevStep() {
     if (_currentStep > 0) {
-      setState(() => _currentStep--);
-      _pageController.animateToPage(
-        _currentStep,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      _animateToStep(_currentStep - 1);
     } else {
       Navigator.of(context).pop();
     }
   }
+
+  void _resendCode() {
+    _showError('تم إعادة إرسال الكود بنجاح.');
+  }
+
+  static const List<String> _stepTitles = [
+    'اختر هويتك',
+    'التحقق من الهوية',
+    'رمز التحقق',
+    'بياناتك الشخصية',
+    'كلمة المرور',
+    'بريدك الإلكتروني',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -79,49 +166,52 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           scrolledUnderElevation: 0,
+          systemOverlayStyle: SystemUiOverlayStyle.dark,
           leading: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor: const Color(0xFFF7F7F7),
-              child: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: Colors.black,
-                  size: 14,
-                ),
-                onPressed: _prevStep,
+            child: _BackButton(onTap: _prevStep),
+          ),
+          title: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.3),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
               ),
             ),
-          ),
-          title: Text(
-            _currentStep == 0 ? "التحقق من الهوية" : "إنشاء حساب جديد",
-            style: GoogleFonts.zain(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: Colors.black,
+            child: Text(
+              _stepTitles[_currentStep],
+              key: ValueKey(_currentStep),
+              style: GoogleFonts.zain(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: Colors.black,
+              ),
             ),
           ),
           centerTitle: true,
         ),
         body: Column(
           children: [
-            LinearProgressIndicator(
-              value: (_currentStep + 1) / _totalSteps,
-              backgroundColor: const Color(0xFFF5F5F5),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
-              minHeight: 3,
+            _StepProgressBar(
+              currentStep: _currentStep,
+              totalSteps: _totalSteps,
             ),
             Expanded(
               child: PageView(
                 controller: _pageController,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  _buildCenterStep(_buildPhoneStep()),
-                  _buildCenterStep(_buildOtpStep()),
-                  _buildCenterStep(_buildUserTypeStep()),
-                  _buildCenterStep(_buildNameAndProfileStep()),
-                  _buildCenterStep(_buildPasswordStep()),
-                  _buildCenterStep(_buildEmailStep()),
+                  _wrapStep(_buildRoleStep()),
+                  _wrapStep(_buildPhoneStep()),
+                  _wrapStep(_buildOtpStep()),
+                  _wrapStep(_buildNameStep()),
+                  _wrapStep(_buildPasswordStep()),
+                  _wrapStep(_buildEmailStep()),
                 ],
               ),
             ),
@@ -131,86 +221,119 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
     );
   }
 
-  Widget _buildCenterStep(Widget stepContent) {
-    return Center(
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            stepContent,
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
+  Widget _wrapStep(Widget content) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              content,
+              const SizedBox(height: 36),
+              _PrimaryButton(
+                label: _currentStep == _totalSteps - 1
+                    ? 'تأكيد وتفعيل الحساب'
+                    : 'المتابعة',
+                isLoading: false,
                 onPressed: _nextStep,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _currentStep == _totalSteps - 1
-                          ? "تأكيد وتفعيل الحساب"
-                          : "المتابعة",
-                      style: GoogleFonts.zain(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 12),
-                  ],
-                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // الخطوة 1: رقم الموبايل مع رمز الدولة الذكي
-  Widget _buildPhoneStep() {
+  Widget _buildRoleStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "مرحباً بك في A7LA2Y",
+          'مرحباً بك في A7LA2Y',
           style: GoogleFonts.zain(
-            fontSize: 24,
+            fontSize: 26,
             fontWeight: FontWeight.w900,
             color: Colors.black,
+            height: 1.2,
           ),
         ),
+        const SizedBox(height: 6),
         Text(
-          "أدخل رقم هاتفك للمتابعة أو إنشاء حساب جديد.",
+          'حدد هويتك لتخصيص تجربتك داخل التطبيق.',
           style: GoogleFonts.zain(
             fontSize: 14,
             color: const Color(0xFF7A7A7A),
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
+        _RoleCard(
+          type: 'client',
+          title: 'عميل',
+          subtitle: 'أبحث عن حلاق أو صالون قريب',
+          icon: Icons.person_search_rounded,
+          selected: _selectedRole == 'client',
+          onTap: () => setState(() => _selectedRole = 'client'),
+        ),
+        const SizedBox(height: 12),
+        _RoleCard(
+          type: 'barber',
+          title: 'حلاق مستقل',
+          subtitle: 'أعمل بحرية وأستقبل حجوزات',
+          icon: Icons.content_cut_rounded,
+          selected: _selectedRole == 'barber',
+          onTap: () => setState(() => _selectedRole = 'barber'),
+        ),
+        const SizedBox(height: 12),
+        _RoleCard(
+          type: 'salon_owner',
+          title: 'صاحب صالون',
+          subtitle: 'أدير فريقاً وأجدول المواعيد',
+          icon: Icons.store_rounded,
+          selected: _selectedRole == 'salon_owner',
+          onTap: () => setState(() => _selectedRole = 'salon_owner'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhoneStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'رقم هاتفك',
+          style: GoogleFonts.zain(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: Colors.black,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'سنرسل رمز تحقق لتأكيد هويتك.',
+          style: GoogleFonts.zain(
+            fontSize: 14,
+            color: const Color(0xFF7A7A7A),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 28),
         Container(
           decoration: BoxDecoration(
             color: const Color(0xFFFBFBFB),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFEFEFEF), width: 1.5),
           ),
           child: Row(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                padding: const EdgeInsets.symmetric(horizontal: 14.0),
                 child: DropdownButton<String>(
                   value: _selectedCountryCode,
                   underline: const SizedBox(),
@@ -219,47 +342,47 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
                     color: Colors.black,
                     size: 18,
                   ),
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
+                  style: GoogleFonts.zain(
                     fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     color: Colors.black,
                   ),
-                  items: <String>['+20', '+966', '+971', '+964'].map((
-                    String value,
-                  ) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value, textDirection: TextDirection.ltr),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() => _selectedCountryCode = value!);
-                  },
+                  dropdownColor: Colors.white,
+                  items: ['+20', '+966', '+971', '+964', '+965', '+974']
+                      .map(
+                        (code) => DropdownMenuItem(
+                          value: code,
+                          child: Text(code, textDirection: TextDirection.ltr),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedCountryCode = v!),
                 ),
               ),
-              Container(width: 1, height: 24, color: const Color(0xFFEFEFEF)),
+              Container(width: 1, height: 26, color: const Color(0xFFEFEFEF)),
               Expanded(
                 child: TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   maxLength: 11,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                  textDirection: TextDirection.ltr,
+                  cursorColor: Colors.black,
+                  style: GoogleFonts.zain(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
                   ),
                   decoration: InputDecoration(
-                    hintText: "01xxxxxxxxx",
+                    hintText: '01xxxxxxxxx',
                     hintStyle: GoogleFonts.zain(
                       fontSize: 15,
-                      color: const Color(0xFF9E9E9E),
+                      color: const Color(0xFFBDBDBD),
                     ),
-                    counterText: "",
+                    counterText: '',
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
-                      vertical: 14,
+                      vertical: 16,
                     ),
                   ),
                 ),
@@ -276,15 +399,90 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "رمز التحقق",
+          'رمز التحقق',
           style: GoogleFonts.zain(
-            fontSize: 24,
+            fontSize: 26,
             fontWeight: FontWeight.w900,
             color: Colors.black,
+            height: 1.2,
           ),
         ),
+        const SizedBox(height: 6),
+        RichText(
+          text: TextSpan(
+            style: GoogleFonts.zain(
+              fontSize: 14,
+              color: const Color(0xFF7A7A7A),
+              fontWeight: FontWeight.w600,
+            ),
+            children: [
+              const TextSpan(text: 'أُرسل إلى '),
+              TextSpan(
+                text: '$_selectedCountryCode ${_phoneController.text.trim()}',
+                style: GoogleFonts.zain(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(4, (i) {
+            return _OtpCell(
+              controller: _otpControllers[i],
+              focusNode: _otpFocusNodes[i],
+              onChanged: (value) {
+                if (value.isNotEmpty && i < 3) {
+                  FocusScope.of(context).requestFocus(_otpFocusNodes[i + 1]);
+                } else if (value.isEmpty && i > 0) {
+                  FocusScope.of(context).requestFocus(_otpFocusNodes[i - 1]);
+                }
+              },
+            );
+          }),
+        ),
+        const SizedBox(height: 20),
+        Center(
+          child: TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            child: Text(
+              'إعادة إرسال الكود',
+              style: GoogleFonts.zain(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNameStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Text(
-          "أدخل كود التحقق المكون من 4 أرقام المرسل إلى هاتفك.",
+          'بياناتك الشخصية',
+          style: GoogleFonts.zain(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: Colors.black,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'أضف صورتك واسمك ليتعرف عليك الصالون.',
           style: GoogleFonts.zain(
             fontSize: 14,
             color: const Color(0xFF7A7A7A),
@@ -292,249 +490,82 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
           ),
         ),
         const SizedBox(height: 28),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(4, (index) {
-            return SizedBox(
-              width: 58,
-              height: 58,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFBFBFB),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: const Color(0xFFEFEFEF),
-                    width: 1.5,
+        Center(
+          child: GestureDetector(
+            onTap: () => setState(() => _hasUploadedImage = !_hasUploadedImage),
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _hasUploadedImage
+                        ? Colors.black
+                        : const Color(0xFFF7F7F7),
+                    border: Border.all(
+                      color: _hasUploadedImage
+                          ? Colors.black
+                          : const Color(0xFFE0E0E0),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    _hasUploadedImage
+                        ? Icons.check_rounded
+                        : Icons.person_outline_rounded,
+                    color: _hasUploadedImage
+                        ? Colors.white
+                        : const Color(0xFF9E9E9E),
+                    size: 36,
                   ),
                 ),
-                child: TextField(
-                  controller: _otpControllers[index],
-                  maxLength: 1,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  cursorColor: Colors.black,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Inter',
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
                     color: Colors.black,
                   ),
-                  decoration: const InputDecoration(
-                    counterText: "",
-                    border: InputBorder.none,
+                  child: const Icon(
+                    Icons.add_a_photo_rounded,
+                    color: Colors.white,
+                    size: 14,
                   ),
-                  onChanged: (value) {
-                    if (value.isNotEmpty && index < 3) {
-                      FocusScope.of(context).nextFocus();
-                    } else if (value.isEmpty && index > 0) {
-                      FocusScope.of(context).previousFocus();
-                    }
-                  },
                 ),
-              ),
-            );
-          }),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: TextButton(
-            onPressed: () {},
-            child: Text(
-              "إعادة إرسال الكود",
-              style: GoogleFonts.zain(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
+              ],
             ),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildUserTypeStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "اختر نوع الحساب",
-          style: GoogleFonts.zain(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: Colors.black,
-          ),
-        ),
-        Text(
-          "حدد هويتك لتخصيص لوحة التحكم الخاصة بك.",
-          style: GoogleFonts.zain(
-            fontSize: 14,
-            color: const Color(0xFF7A7A7A),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Column(
-          children: [
-            _buildTypeRowItem(
-              type: 'client',
-              title: 'أنا عميل (أبحث عن حلاق)',
-              icon: Icons.person_search_rounded,
-            ),
-            const SizedBox(height: 12),
-            _buildTypeRowItem(
-              type: 'barber',
-              title: 'أنا حلاق مستقل (أعمل بحرية)',
-              icon: Icons.content_cut_rounded,
-            ),
-            const SizedBox(height: 12),
-            _buildTypeRowItem(
-              type: 'salon',
-              title: 'صاحب صالون / محل حلاقة مكامل',
-              icon: Icons.store_rounded,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTypeRowItem({
-    required String type,
-    required String title,
-    required IconData icon,
-  }) {
-    bool isSelected = _userType == type;
-    return GestureDetector(
-      onTap: () => setState(() => _userType = type),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.black : const Color(0xFFFBFBFB),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? Colors.black : const Color(0xFFEFEFEF),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.black,
-              size: 22,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: GoogleFonts.zain(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: isSelected ? Colors.white : Colors.black,
-                ),
-              ),
-            ),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNameAndProfileStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Align(
-          alignment: Alignment.topRight,
-          child: Text(
-            "بياناتك الشخصية",
-            style: GoogleFonts.zain(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: Colors.black,
-            ),
-          ),
-        ),
-        Align(
-          alignment: Alignment.topRight,
-          child: Text(
-            "أضف صورتك واسمك ليتعرف عليك النظام والصالونات.",
-            style: GoogleFonts.zain(
-              fontSize: 14,
-              color: const Color(0xFF7A7A7A),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        GestureDetector(
-          onTap: () => setState(() => _hasUploadedImage = !_hasUploadedImage),
-          child: Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFF7F7F7),
-                  border: Border.all(color: const Color(0xFFEFEFEF), width: 2),
-                ),
-                child: _hasUploadedImage
-                    ? const Icon(
-                        Icons.check_circle_rounded,
-                        color: Colors.black,
-                        size: 32,
-                      )
-                    : const Icon(
-                        Icons.person_outline_rounded,
-                        color: Color(0xFF9E9E9E),
-                        size: 36,
-                      ),
-              ),
-              const CircleAvatar(
-                radius: 14,
-                backgroundColor: Colors.black,
-                child: Icon(
-                  Icons.add_a_photo_rounded,
-                  color: Colors.white,
-                  size: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFBFBFB),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFEFEFEF), width: 1.5),
-          ),
+        const SizedBox(height: 28),
+        _FieldBox(
           child: TextField(
             controller: _nameController,
-            style: const TextStyle(fontSize: 15),
+            cursorColor: Colors.black,
+            style: GoogleFonts.zain(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
             decoration: InputDecoration(
-              hintText: "الاسم بالكامل",
+              hintText: 'الاسم بالكامل',
               hintStyle: GoogleFonts.zain(
                 fontSize: 15,
-                color: const Color(0xFF9E9E9E),
+                color: const Color(0xFFBDBDBD),
               ),
               prefixIcon: const Icon(
                 Icons.person_outline_rounded,
-                color: Colors.black,
-                size: 18,
+                color: Color(0xFF9E9E9E),
+                size: 20,
               ),
               border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
             ),
           ),
         ),
@@ -547,45 +578,61 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "تعيين كلمة المرور",
+          'كلمة المرور',
           style: GoogleFonts.zain(
-            fontSize: 24,
+            fontSize: 26,
             fontWeight: FontWeight.w900,
             color: Colors.black,
+            height: 1.2,
           ),
         ),
+        const SizedBox(height: 6),
         Text(
-          "احرص على كتابة كلمة مرور قوية لحماية حسابك.",
+          'احرص على كتابة كلمة مرور قوية لحماية حسابك.',
           style: GoogleFonts.zain(
             fontSize: 14,
             color: const Color(0xFF7A7A7A),
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFBFBFB),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFEFEFEF), width: 1.5),
-          ),
+        const SizedBox(height: 28),
+        _FieldBox(
           child: TextField(
             controller: _passwordController,
-            obscureText: true,
-            style: const TextStyle(fontSize: 15),
+            obscureText: _obscurePassword,
+            cursorColor: Colors.black,
+            style: GoogleFonts.zain(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
             decoration: InputDecoration(
-              hintText: "كلمة المرور الجديدة",
+              hintText: 'كلمة المرور (6 أحرف على الأقل)',
               hintStyle: GoogleFonts.zain(
-                fontSize: 15,
-                color: const Color(0xFF9E9E9E),
+                fontSize: 14,
+                color: const Color(0xFFBDBDBD),
               ),
               prefixIcon: const Icon(
                 Icons.lock_outline_rounded,
-                color: Colors.black,
-                size: 18,
+                color: Color(0xFF9E9E9E),
+                size: 20,
+              ),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: const Color(0xFF9E9E9E),
+                  size: 20,
+                ),
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
               ),
               border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
             ),
           ),
         ),
@@ -598,49 +645,343 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "بريدك الإلكتروني",
+          'بريدك الإلكتروني',
           style: GoogleFonts.zain(
-            fontSize: 24,
+            fontSize: 26,
             fontWeight: FontWeight.w900,
             color: Colors.black,
+            height: 1.2,
           ),
         ),
+        const SizedBox(height: 6),
         Text(
-          "سنرسل لك تفاصيل الفواتير وحالة الحجوزات هنا (اختياري).",
+          'سنرسل تفاصيل الفواتير وتأكيدات الحجز هنا. (اختياري)',
           style: GoogleFonts.zain(
             fontSize: 14,
             color: const Color(0xFF7A7A7A),
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFBFBFB),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFEFEFEF), width: 1.5),
-          ),
+        const SizedBox(height: 28),
+        _FieldBox(
           child: TextField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(fontSize: 15),
+            cursorColor: Colors.black,
+            textDirection: TextDirection.ltr,
+            style: GoogleFonts.zain(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
             decoration: InputDecoration(
-              hintText: "البريد الإلكتروني",
+              hintText: 'example@mail.com',
               hintStyle: GoogleFonts.zain(
                 fontSize: 15,
-                color: const Color(0xFF9E9E9E),
+                color: const Color(0xFFBDBDBD),
               ),
               prefixIcon: const Icon(
                 Icons.alternate_email_rounded,
-                color: Colors.black,
-                size: 18,
+                color: Color(0xFF9E9E9E),
+                size: 20,
               ),
               border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(foregroundColor: Colors.black54),
+            child: Text(
+              'تخطي هذه الخطوة',
+              style: GoogleFonts.zain(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF9E9E9E),
+              ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _StepProgressBar extends StatelessWidget {
+  final int currentStep;
+  final int totalSteps;
+
+  const _StepProgressBar({required this.currentStep, required this.totalSteps});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12),
+      child: Row(
+        children: List.generate(totalSteps, (i) {
+          final bool isActive = i <= currentStep;
+          return Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              height: 3,
+              margin: EdgeInsets.only(right: i < totalSteps - 1 ? 4 : 0),
+              decoration: BoxDecoration(
+                color: isActive ? Colors.black : const Color(0xFFEEEEEE),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _BackButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _BackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFFF7F7F7),
+        ),
+        child: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: Colors.black,
+          size: 14,
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  final String label;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  const _PrimaryButton({
+    required this.label,
+    required this.isLoading,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF444444),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+        ),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: isLoading
+              ? const SizedBox(
+                  key: ValueKey('loader'),
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : Row(
+                  key: const ValueKey('label'),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.zain(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 12),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldBox extends StatelessWidget {
+  final Widget child;
+
+  const _FieldBox({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBFBFB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEFEFEF), width: 1.5),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _OtpCell extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+
+  const _OtpCell({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFBFBFB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEFEFEF), width: 1.5),
+        ),
+        child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          maxLength: 1,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          cursorColor: Colors.black,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: GoogleFonts.zain(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: Colors.black,
+          ),
+          decoration: const InputDecoration(
+            counterText: '',
+            border: InputBorder.none,
+          ),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  final String type;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RoleCard({
+    required this.type,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        decoration: BoxDecoration(
+          color: selected ? Colors.black : const Color(0xFFFBFBFB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? Colors.black : const Color(0xFFEFEFEF),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : const Color(0xFFF0F0F0),
+              ),
+              child: Icon(
+                icon,
+                color: selected ? Colors.white : Colors.black,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.zain(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: selected ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.zain(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: selected
+                          ? Colors.white.withValues(alpha: 0.7)
+                          : const Color(0xFF9E9E9E),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedOpacity(
+              opacity: selected ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

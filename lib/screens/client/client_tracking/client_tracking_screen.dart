@@ -72,13 +72,12 @@ class _clientTrackingScreenState extends State<clientTrackingScreen> {
 
   void _fitBounds() {
     try {
-      final bounds =
-          LatLngBounds.fromPoints([_barberPosition, _clientPosition]);
+      final bounds = LatLngBounds.fromPoints([
+        _barberPosition,
+        _clientPosition,
+      ]);
       _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.all(60),
-        ),
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(60)),
       );
     } catch (_) {
       // MapController may not be ready yet
@@ -187,7 +186,7 @@ class _clientTrackingScreenState extends State<clientTrackingScreen> {
                             TileLayer(
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.saif.a7la2y',
+                              userAgentPackageName: 'com.kanan.a7la2y',
                             ),
                             // Route polyline
                             if (_routePoints.isNotEmpty)
@@ -197,8 +196,9 @@ class _clientTrackingScreenState extends State<clientTrackingScreen> {
                                     points: _routePoints,
                                     color: const Color(0xFF1A1A1A),
                                     strokeWidth: 4.0,
-                                    borderColor:
-                                        Colors.black.withValues(alpha: 0.2),
+                                    borderColor: Colors.black.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     borderStrokeWidth: 1.5,
                                   ),
                                 ],
@@ -217,8 +217,9 @@ class _clientTrackingScreenState extends State<clientTrackingScreen> {
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.14),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.14,
+                                          ),
                                           blurRadius: 10,
                                           offset: const Offset(0, 4),
                                         ),
@@ -242,8 +243,9 @@ class _clientTrackingScreenState extends State<clientTrackingScreen> {
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.25),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.25,
+                                          ),
                                           blurRadius: 12,
                                           offset: const Offset(0, 4),
                                         ),
@@ -280,8 +282,7 @@ class _clientTrackingScreenState extends State<clientTrackingScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
-                                    color:
-                                        Colors.black.withValues(alpha: 0.08),
+                                    color: Colors.black.withValues(alpha: 0.08),
                                     blurRadius: 10,
                                   ),
                                 ],

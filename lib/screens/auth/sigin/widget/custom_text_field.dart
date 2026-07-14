@@ -20,11 +20,11 @@ class CustomTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color.fromARGB(255, 255, 255, 255)),
+        color: const Color(0xFFFBFBFB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEFEFEF), width: 1.5),
       ),
       child: TextField(
         controller: controller,
@@ -40,16 +40,16 @@ class CustomTextField extends StatelessWidget {
           hintText: hintText,
           hintStyle: GoogleFonts.zain(
             fontSize: 14,
-            color: const Color(0xFF9E9E9E),
+            color: const Color(0xFFBDBDBD),
             fontWeight: FontWeight.w600,
           ),
           prefixIcon: prefixIcon != null
-              ? Icon(prefixIcon, color: const Color(0xFF7A7A7A), size: 18)
+              ? Icon(prefixIcon, color: const Color(0xFF9E9E9E), size: 20)
               : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 14,
+            vertical: 16,
           ),
         ),
       ),

@@ -1,313 +1,723 @@
+import 'dart:async';
 import 'package:a7la2y/screens/client/barber/barber_list_screen.dart';
 import 'package:a7la2y/screens/client/barber_shops/barber_shops_screen.dart';
+import 'package:a7la2y/services/location_service.dart';
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final MapController _mapController = MapController();
+
+  static const LatLng _defaultCenter = LatLng(30.0444, 31.2357);
+  LatLng _currentPosition = _defaultCenter;
+  bool _isLoadingLocation = true;
+  String? _currentAddress;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentLocation();
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    final position = await LocationService.getCurrentPosition();
+    if (!mounted) return;
+    setState(() {
+      if (position != null) {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        _currentAddress =
+            '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+      }
+      _isLoadingLocation = false;
+    });
+    try {
+      _mapController.move(_currentPosition, 15.0);
+    } catch (_) {}
+  }
+
+  void _centerOnMe() {
+    try {
+      _mapController.move(_currentPosition, 15.0);
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F6),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Gap(16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _defaultCenter,
+                  initialZoom: 15.0,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all,
+                  ),
+                ),
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF0EDE7),
-                          shape: BoxShape.circle,
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.kanan.a7la2y',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: _currentPosition,
+                        width: 44,
+                        height: 44,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          color: Color(0xFF1A1A1A),
-                          size: 14,
-                        ),
-                      ),
-                      const Gap(8),
-                      Text(
-                        "المعادي، القاهرة",
-                        style: GoogleFonts.zain(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color: const Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const Gap(4),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Color(0xFF1A1A1A),
-                        size: 15,
                       ),
                     ],
                   ),
-                  Stack(
+                ],
+              ),
+            ),
+
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFEFEFEF)),
-                        ),
-                        child: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: Colors.black,
-                          size: 18,
+                      _buildFloatingCircleButton(
+                        icon: Icons.menu_rounded,
+                        onTap: () {},
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on_rounded,
+                                color: Colors.black,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      "موقعك الحالي",
+                                      style: GoogleFonts.zain(
+                                        fontSize: 10,
+                                        color: const Color(0xFF9E9E9E),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      _isLoadingLocation
+                                          ? "جاري تحديد الموقع..."
+                                          : _currentAddress ??
+                                                "المعادي، القاهرة",
+                                      style: GoogleFonts.zain(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.black,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_left_rounded,
+                                color: Color(0xFFBBBBBB),
+                                size: 20,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF1A1A1A),
-                            shape: BoxShape.circle,
+                      const SizedBox(width: 10),
+                      Stack(
+                        children: [
+                          _buildFloatingCircleButton(
+                            icon: Icons.notifications_none_rounded,
+                            onTap: () {},
                           ),
-                          child: const Text(
-                            "2",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Container(
+                              width: 16,
+                              height: 16,
+                              decoration: const BoxDecoration(
+                                color: Colors.black,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  "2",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            Positioned(
+              left: 16,
+              bottom: 370,
+              child: _buildFloatingCircleButton(
+                icon: Icons.my_location_rounded,
+                onTap: _centerOnMe,
+              ),
+            ),
+
+            DraggableScrollableSheet(
+              initialChildSize: 0.42,
+              minChildSize: 0.12,
+              maxChildSize: 0.75,
+              snap: true,
+              snapSizes: const [0.12, 0.42, 0.75],
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, -6),
+                      ),
+                    ],
+                  ),
+                  child: ListView(
+                    controller: scrollController,
+                    padding: EdgeInsets.zero,
+                    children: [
+                      Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 10, bottom: 6),
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDDDDDD),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  "صباح الخير",
+                                  style: GoogleFonts.zain(
+                                    fontSize: 14,
+                                    color: const Color(0xFF9E9E9E),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  "👋",
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              "ماذا تريد اليوم؟",
+                              style: GoogleFonts.zain(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black,
+                                height: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildServiceCategoryBig(
+                                title: "حلاق في المنزل",
+                                subtitle: "نوصلك لحد البيت",
+                                icon: Icons.home_rounded,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const BarberListScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  _buildServiceCategorySmall(
+                                    title: "صالون حلاقة",
+                                    icon: Icons.store_rounded,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const BarberShopsScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildServiceCategorySmall(
+                                    title: "عناية وتجميل",
+                                    icon: Icons.spa_rounded,
+                                    onTap: () {},
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Search bar
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: GestureDetector(
+                          onTap: () {},
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF5F5F5),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.search_rounded,
+                                  color: Color(0xFF9E9E9E),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  "ابحث عن حلاق أو خدمة...",
+                                  style: GoogleFonts.zain(
+                                    fontSize: 14,
+                                    color: const Color(0xFF9E9E9E),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
+
+                      const SizedBox(height: 16),
+
+                      _buildRecentAddress(
+                        title: "شارع صلاح الدين",
+                        subtitle: "العمرانية، الجيزة",
+                      ),
+                      _buildRecentAddress(
+                        title: "طريق القاهرة - السويس",
+                        subtitle: "البساتين، القاهرة",
+                      ),
+                      _buildRecentAddress(
+                        title: "المعادي، القاهرة",
+                        subtitle: "شارع 9 — بجوار مسجد المعادي",
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.content_cut_rounded,
+                                  color: Colors.black,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "خدمات سريعة",
+                                  style: GoogleFonts.zain(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              "عرض الكل",
+                              style: GoogleFonts.zain(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF9E9E9E),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      SizedBox(
+                        height: 100,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          children: [
+                            _buildServiceChip(
+                              "قص شعر",
+                              Icons.content_cut_rounded,
+                              "25 ج.م",
+                            ),
+                            _buildServiceChip(
+                              "حلاقة",
+                              Icons.brush_rounded,
+                              "15 ج.م",
+                            ),
+                            _buildServiceChip(
+                              "تشكيل لحية",
+                              Icons.face_retouching_natural_rounded,
+                              "20 ج.م",
+                            ),
+                            _buildServiceChip(
+                              "غسيل شعر",
+                              Icons.shower_rounded,
+                              "10 ج.م",
+                            ),
+                            _buildServiceChip(
+                              "صبغة شعر",
+                              Icons.color_lens_outlined,
+                              "50 ج.م",
+                            ),
+                            _buildServiceChip(
+                              "عناية بالبشرة",
+                              Icons.spa_rounded,
+                              "40 ج.م",
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "زرتهم مؤخراً",
+                              style: GoogleFonts.zain(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Text(
+                              "عرض الكل",
+                              style: GoogleFonts.zain(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF9E9E9E),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      SizedBox(
+                        height: 110,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          children: [
+                            _buildBarberItem(name: "أحمد خالد", rating: "4.7"),
+                            _buildBarberItem(name: "عبدالرحمن", rating: "4.8"),
+                            _buildBarberItem(
+                              name: "محمد إبراهيم",
+                              rating: "4.9",
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
                     ],
                   ),
-                ],
-              ),
-              const Gap(24),
-              Row(
-                children: [
-                  Text(
-                    "صباح الخير",
-                    style: GoogleFonts.zain(
-                      fontSize: 18,
-                      color: const Color(0xFF7A7A7A),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Gap(6),
-                  const Text("👋", style: TextStyle(fontSize: 18)),
-                ],
-              ),
-              Text(
-                "ماذا تريد اليوم؟",
-                style: GoogleFonts.zain(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: const Color(0xFF1A1A1A),
-                  height: 1.1,
-                ),
-              ),
-              const Gap(20),
-              _buildFeatureCard(
-                title: "حلاق في المنزل",
-                subtitle: "في راحة بيتك",
-                badgeText: "متاح الآن",
-                icon: Icons.home_rounded,
-                isDark: true,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const BarberListScreen(),
-                    ),
-                  );
-                },
-              ),
-              const Gap(16),
-              _buildFeatureCard(
-                title: "صالون حلاقة",
-                subtitle: "احجز مقعدك",
-                badgeText: "47 صالون قريب",
-                icon: Icons.content_cut_rounded,
-                isDark: false,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const BarberShopsScreen(),
-                    ),
-                  );
-                },
-              ),
-              const Gap(28),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "زرتهم مؤخراً",
-                    style: GoogleFonts.zain(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text(
-                      "عرض الكل",
-                      style: GoogleFonts.zain(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF1A1A1A),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const Gap(12),
-              SizedBox(
-                height: 130,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _buildBarberItem(name: "أحمد خالد", rating: "4.7"),
-                    const Gap(20),
-                    _buildBarberItem(name: "عبدالرحمن", rating: "4.8"),
-                    const Gap(20),
-                    _buildBarberItem(name: "محمد إبراهيم", rating: "4.9"),
-                  ],
-                ),
-              ),
-              const Gap(24),
-            ],
-          ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildFeatureCard({
-    required String title,
-    required String subtitle,
-    required String badgeText,
+  Widget _buildFloatingCircleButton({
     required IconData icon,
-    required bool isDark,
-    required Null Function() onTap,
+    required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity,
-        height: 170,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: isDark ? null : Border.all(color: const Color(0xFFEFEFEF)),
+          color: Colors.white,
+          shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.12 : 0.03),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
-        child: Stack(
+        child: Icon(icon, color: Colors.black, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildServiceCategoryBig({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 130,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Positioned(
-              right: 20,
-              top: 20,
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.08)
-                      : const Color(0xFFF5F5F5),
-                  shape: BoxShape.circle,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.zain(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
                 ),
-                child: Icon(
-                  icon,
-                  color: isDark ? Colors.white : Colors.black,
-                  size: 24,
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.zain(
+                    fontSize: 11,
+                    color: const Color(0xFF9E9E9E),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222222),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: Colors.white, size: 22),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildServiceCategorySmall({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 60,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.black, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.zain(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black,
                 ),
               ),
             ),
-            Positioned(
-              left: 20,
-              top: 22,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.12) : Colors.black,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isDark) ...[
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF00FF66),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const Gap(6),
-                    ],
-                    if (!isDark) ...[
-                      const Icon(
-                        Icons.location_on_rounded,
-                        color: Colors.white,
-                        size: 12,
-                      ),
-                      const Gap(4),
-                    ],
-                    Text(
-                      badgeText,
-                      style: GoogleFonts.zain(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        height: 1.0,
-                      ),
-                    ),
-                  ],
-                ),
+            const Icon(
+              Icons.chevron_left_rounded,
+              color: Color(0xFFCCCCCC),
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentAddress({
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Color(0xFFF5F5F5), width: 1),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.access_time_rounded,
+                color: Color(0xFF9E9E9E),
+                size: 16,
               ),
             ),
-            Positioned(
-              right: 24,
-              bottom: 20,
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    subtitle,
+                    title,
                     style: GoogleFonts.zain(
-                      fontSize: 12,
-                      color: isDark
-                          ? const Color(0xFFA3A3A3)
-                          : const Color(0xFFB0B0B0),
-                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
                     ),
                   ),
                   Text(
-                    title,
+                    subtitle,
                     style: GoogleFonts.zain(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : Colors.black,
-                      height: 1.1,
+                      fontSize: 12,
+                      color: const Color(0xFF9E9E9E),
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
@@ -318,83 +728,132 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-Widget _buildBarberItem({required String name, required String rating}) {
-  return Column(
-    children: [
-      Stack(
-        clipBehavior: Clip.none,
+  Widget _buildServiceChip(String name, IconData icon, String price) {
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.only(left: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          GestureDetector(
-            onTap: () {},
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: const Color(0xFFEAEAEA),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.person_rounded,
-                color: Color(0xFFB5B5B5),
-                size: 40,
-              ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(icon, color: Colors.black, size: 18),
           ),
-          Positioned(
-            bottom: -4,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      color: Color(0xFFFFD700),
-                      size: 12,
-                    ),
-                    const Gap(2),
-                    Text(
-                      rating,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          const SizedBox(height: 6),
+          Text(
+            name,
+            style: GoogleFonts.zain(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: Colors.black,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            price,
+            style: GoogleFonts.zain(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF9E9E9E),
             ),
           ),
         ],
       ),
-      const Gap(12),
-      Text(
-        name,
-        style: GoogleFonts.zain(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: const Color(0xFF1A1A1A),
-        ),
+    );
+  }
+
+  Widget _buildBarberItem({required String name, required String rating}) {
+    return Container(
+      margin: const EdgeInsets.only(left: 16),
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAEAEA),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: Color(0xFFB5B5B5),
+                  size: 32,
+                ),
+              ),
+              Positioned(
+                bottom: -4,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Color(0xFFFFD700),
+                          size: 10,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          rating,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            name,
+            style: GoogleFonts.zain(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
+            ),
+          ),
+        ],
       ),
-    ],
-  );
+    );
+  }
 }

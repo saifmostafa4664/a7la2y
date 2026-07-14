@@ -28,7 +28,7 @@ class MinimalMapBackground extends StatelessWidget {
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.saif.a7la2y',
+                    userAgentPackageName: 'com.kanan.a7la2y',
                   ),
                 ],
               ),

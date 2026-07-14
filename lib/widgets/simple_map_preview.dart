@@ -96,7 +96,6 @@ class SimpleMapPreview extends StatelessWidget {
 class _MapPreviewPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = const Color(0xFFF7F7F7);
     final gradient = Paint()
       ..shader = LinearGradient(
         colors: [const Color(0xFFE0E6FE), const Color(0xFFB8C7FF)],
