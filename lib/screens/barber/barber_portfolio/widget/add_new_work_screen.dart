@@ -234,7 +234,7 @@ class _AddNewWorkScreenState extends State<AddNewWorkScreen> {
                           ),
                           Switch(
                             value: _isFeatured,
-                            activeColor: Colors.black,
+                            activeThumbColor: Colors.black,
                             activeTrackColor: const Color(0xFFEFEFEF),
                             inactiveThumbColor: Colors.grey,
                             inactiveTrackColor: const Color(0xFFF5F5F5),

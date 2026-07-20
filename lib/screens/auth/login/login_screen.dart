@@ -1,3 +1,9 @@
+import 'package:a7la2y/core/injection_container.dart';
+import 'package:a7la2y/core/utils/page_transitions.dart';
+import 'package:a7la2y/features/auth/presentation/cubit/auth_cubit.dart';
+import 'package:a7la2y/features/auth/presentation/cubit/auth_state.dart';
+import 'package:a7la2y/features/auth/presentation/cubit/phone_auth_cubit.dart';
+import 'package:a7la2y/features/auth/presentation/cubit/phone_auth_state.dart';
 import 'package:a7la2y/screens/auth/login/widget/login_widgets.dart';
 import 'package:a7la2y/screens/auth/sigin/auth_flow_screen.dart';
 import 'package:a7la2y/screens/root/root%20barber.dart';
@@ -5,6 +11,7 @@ import 'package:a7la2y/screens/root/root%20clint.dart';
 import 'package:a7la2y/screens/root/root%20shops.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -21,10 +28,12 @@ class _LoginScreenState extends State<LoginScreen>
 
   late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
+  late final PhoneAuthCubit _phoneAuthCubit;
 
   @override
   void initState() {
     super.initState();
+    _phoneAuthCubit = sl<PhoneAuthCubit>();
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -40,109 +49,229 @@ class _LoginScreenState extends State<LoginScreen>
   void dispose() {
     _fadeController.dispose();
     _phoneController.dispose();
+    _phoneAuthCubit.close();
     super.dispose();
+  }
+
+  void _routeByRole(String role) {
+    Widget destination;
+    switch (role) {
+      case 'barber':
+        destination = const MainNavigationWrapper_barber();
+        break;
+      case 'salon_owner':
+        destination = const MainNavigationWrapper_shops();
+        break;
+      default:
+        destination = const MainNavigationWrapper_clint();
+    }
+    Navigator.pushAndRemoveUntil(
+      context,
+      FadeSlideRoute(page: destination),
+      (route) => false,
+    );
+  }
+
+  void _handleAuthSuccess(AuthState state) {
+    if (state is AuthAuthenticated) {
+      if (state.user.isProfileCompleted) {
+        _routeByRole(state.user.role);
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          FadeSlideRoute(
+            page: AuthFlowScreen(
+              skipToProfile: true,
+              authenticatedUid: state.user.uid,
+            ),
+          ),
+          (route) => false,
+        );
+      }
+    } else if (state is AuthError) {
+      _showError(state.message);
+    }
+  }
+
+  void _handlePhoneAuthState(PhoneAuthState state) {
+    if (state is PhoneAuthCodeSent) {
+      setState(() => _isLoading = false);
+      Navigator.push(
+        context,
+        FadeSlideRoute(
+          page: AuthFlowScreen(
+            prefillPhone: _phoneController.text.trim(),
+            startAtOtp: true,
+            phoneAuthCubit: _phoneAuthCubit,
+          ),
+        ),
+      );
+    } else if (state is PhoneAuthAutoVerified) {
+      setState(() => _isLoading = false);
+      if (state.user.isProfileCompleted) {
+        _routeByRole(state.user.role);
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          FadeSlideRoute(
+            page: AuthFlowScreen(
+              skipToProfile: true,
+              authenticatedUid: state.user.uid,
+            ),
+          ),
+          (route) => false,
+        );
+      }
+    } else if (state is PhoneAuthError) {
+      setState(() => _isLoading = false);
+      _showError(state.message);
+    } else if (state is PhoneAuthLoading) {
+      setState(() => _isLoading = true);
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.zain(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+          textDirection: TextDirection.rtl,
+        ),
+        backgroundColor: Colors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _onSendOtp() {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      _showError('أدخل رقم الهاتف.');
+      return;
+    }
+    _phoneAuthCubit.verifyPhoneNumber(phone);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark,
-        child: Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<AuthCubit, AuthState>(
+          listener: (context, state) => _handleAuthSuccess(state),
+        ),
+        BlocListener<PhoneAuthCubit, PhoneAuthState>(
+          bloc: _phoneAuthCubit,
+          listener: (context, state) => _handlePhoneAuthState(state),
+        ),
+      ],
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.dark,
+          child: Scaffold(
             backgroundColor: Colors.white,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).maybePop(),
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFFF7F7F7),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: Colors.black,
-                    size: 14,
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              leading: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).maybePop(),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFF7F7F7),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.black,
+                      size: 14,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          body: SafeArea(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
-                    Text(
-                      'مرحباً بك مجدداً',
-                      style: GoogleFonts.zain(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'أدخل رقم هاتفك وسنرسل لك كود تحقق.',
-                      style: GoogleFonts.zain(
-                        fontSize: 14,
-                        color: const Color(0xFF7A7A7A),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 36),
-                    _LoginFieldBox(
-                      child: TextField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        cursorColor: Colors.black,
+            body: SafeArea(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      Text(
+                        'مرحباً بك مجدداً',
                         style: GoogleFonts.zain(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
                           color: Colors.black,
+                          height: 1.2,
                         ),
-                        decoration: InputDecoration(
-                          hintText: 'رقم الهاتف',
-                          hintStyle: GoogleFonts.zain(
-                            fontSize: 14,
-                            color: const Color(0xFFBDBDBD),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'أدخل رقم هاتفك وسنرسل لك كود تحقق.',
+                        style: GoogleFonts.zain(
+                          fontSize: 14,
+                          color: const Color(0xFF7A7A7A),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 36),
+                      _LoginFieldBox(
+                        child: TextField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          cursorColor: Colors.black,
+                          style: GoogleFonts.zain(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
                           ),
-                          prefixIcon: const Icon(
-                            Icons.phone_android_rounded,
-                            color: Color(0xFF9E9E9E),
-                            size: 20,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
+                          decoration: InputDecoration(
+                            hintText: 'رقم الهاتف',
+                            hintStyle: GoogleFonts.zain(
+                              fontSize: 14,
+                              color: const Color(0xFFBDBDBD),
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.phone_android_rounded,
+                              color: Color(0xFF9E9E9E),
+                              size: 20,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 28),
-                    _buildLoginButton(),
-                    const SizedBox(height: 28),
-                    _buildDivider(),
-                    const SizedBox(height: 24),
-                    _buildSocialRow(),
-                    const SizedBox(height: 36),
-                    _buildRegisterRow(),
-                    const SizedBox(height: 24),
-                  ],
+                      const SizedBox(height: 28),
+                      _buildLoginButton(),
+                      const SizedBox(height: 28),
+                      _buildDivider(),
+                      const SizedBox(height: 24),
+                      _buildSocialRow(),
+                      const SizedBox(height: 36),
+                      _buildRegisterRow(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -157,14 +286,7 @@ class _LoginScreenState extends State<LoginScreen>
       width: double.infinity,
       height: 54,
       child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const MainNavigationWrapper_clint(),
-            ),
-          );
-        },
+        onPressed: _isLoading ? null : _onSendOtp,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
@@ -220,32 +342,33 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildSocialRow() {
-    return Row(
-      children: [
-        SocialLoginButton(
-          iconAsset: 'assets/images/logo_16509564.png',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const MainNavigationWrapper_barber(),
-              ),
-            );
-          },
-        ),
-        const SizedBox(width: 12),
-        SocialLoginButton(
-          iconAsset: 'assets/images/apple-logo_747.png',
-          onTap: () {
-             Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const MainNavigationWrapper_shops(),
-              ),
-            );
-          },
-        ),
-      ],
+    return BlocBuilder<AuthCubit, AuthState>(
+      builder: (context, state) {
+        final isGoogleLoading =
+            state is AuthLoading && state.method == 'google';
+        final isAppleLoading =
+            state is AuthLoading && state.method == 'apple';
+
+        return Row(
+          children: [
+            SocialLoginButton(
+              iconAsset: 'assets/images/logo_16509564.png',
+              isLoading: isGoogleLoading,
+              onTap: isAppleLoading
+                  ? null
+                  : () => context.read<AuthCubit>().signInWithGoogle(),
+            ),
+            const SizedBox(width: 12),
+            SocialLoginButton(
+              iconAsset: 'assets/images/apple-logo_747.png',
+              isLoading: isAppleLoading,
+              onTap: isGoogleLoading
+                  ? null
+                  : () => context.read<AuthCubit>().signInWithApple(),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -265,7 +388,7 @@ class _LoginScreenState extends State<LoginScreen>
           TextButton(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const AuthFlowScreen()),
+              FadeSlideRoute(page: const AuthFlowScreen()),
             ),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),

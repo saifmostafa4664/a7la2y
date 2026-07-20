@@ -36,7 +36,7 @@ class SimpleMapPreview extends StatelessWidget {
                     borderRadius: BorderRadius.circular(22),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.18),
+                        color: Colors.black.withValues(alpha: 0.18),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
@@ -82,7 +82,7 @@ class SimpleMapPreview extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.14),
+            color: Colors.black.withValues(alpha: 0.14),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -106,7 +106,7 @@ class _MapPreviewPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, gradient);
 
     final roadPaint = Paint()
-      ..color = Colors.white.withOpacity(0.35)
+      ..color = Colors.white.withValues(alpha: 0.35)
       ..strokeWidth = 14
       ..strokeCap = StrokeCap.round;
 

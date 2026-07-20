@@ -1,12 +1,34 @@
+import 'dart:async';
+
+import 'package:a7la2y/core/injection_container.dart';
+import 'package:a7la2y/core/utils/page_transitions.dart';
+import 'package:a7la2y/features/auth/domain/repositories/auth_repository.dart';
+import 'package:a7la2y/features/auth/presentation/cubit/phone_auth_cubit.dart';
+import 'package:a7la2y/features/auth/presentation/cubit/phone_auth_state.dart';
+import 'package:a7la2y/screens/root/root%20barber.dart';
+import 'package:a7la2y/screens/root/root%20clint.dart';
+import 'package:a7la2y/screens/root/root%20shops.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AuthFlowScreen extends StatefulWidget {
   final String? prefillPhone;
   final bool startAtOtp;
+  final PhoneAuthCubit? phoneAuthCubit;
+  final bool skipToProfile;
+  final String? authenticatedUid;
 
-  const AuthFlowScreen({super.key, this.prefillPhone, this.startAtOtp = false});
+  const AuthFlowScreen({
+    super.key,
+    this.prefillPhone,
+    this.startAtOtp = false,
+    this.phoneAuthCubit,
+    this.skipToProfile = false,
+    this.authenticatedUid,
+  });
 
   @override
   State<AuthFlowScreen> createState() => _AuthFlowScreenState();
@@ -32,15 +54,30 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
   String _selectedCountryCode = '+20';
   bool _obscurePassword = true;
   bool _hasUploadedImage = false;
+  bool _isLoading = false;
 
   late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
   late final AnimationController _slideController;
   late final Animation<Offset> _slideAnimation;
 
+  late final PhoneAuthCubit _phoneAuthCubit;
+  bool _ownsPhoneAuthCubit = false;
+
+  int _resendCooldown = 0;
+  Timer? _cooldownDisplayTimer;
+
   @override
   void initState() {
     super.initState();
+
+    if (widget.phoneAuthCubit != null) {
+      _phoneAuthCubit = widget.phoneAuthCubit!;
+    } else {
+      _phoneAuthCubit = sl<PhoneAuthCubit>();
+      _ownsPhoneAuthCubit = true;
+    }
+
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -61,6 +98,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
     if (widget.prefillPhone != null) {
       _phoneController.text = widget.prefillPhone!;
     }
+
     if (widget.startAtOtp) {
       _currentStep = 2;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -81,11 +119,15 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
     _nameController.dispose();
     _passwordController.dispose();
     _emailController.dispose();
+    _cooldownDisplayTimer?.cancel();
     for (final c in _otpControllers) {
       c.dispose();
     }
     for (final f in _otpFocusNodes) {
       f.dispose();
+    }
+    if (_ownsPhoneAuthCubit) {
+      _phoneAuthCubit.close();
     }
     super.dispose();
   }
@@ -103,36 +145,10 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
     _slideController.forward();
   }
 
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.zain(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: Colors.black,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
   void _nextStep() {
-    // UI-only navigation - no authentication or registration logic
     if (_currentStep < _totalSteps - 1) {
       _animateToStep(_currentStep + 1);
     }
-  }
-
-  void _finalizeRegistration() {
-    _showError('هذا تصميم واجهة مستخدم فقط - لا توجد عملية تسجيل حقيقية.');
   }
 
   void _prevStep() {
@@ -143,8 +159,197 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
     }
   }
 
-  void _resendCode() {
-    _showError('تم إعادة إرسال الكود بنجاح.');
+  String _normalizePhoneForDisplay() {
+    final phone = _phoneController.text.trim();
+    return '$_selectedCountryCode $phone';
+  }
+
+  String _normalizePhoneForAuth() {
+    final phone = _phoneController.text.trim();
+    if (phone.startsWith('0')) {
+      return '$_selectedCountryCode${phone.substring(1)}';
+    }
+    return '$_selectedCountryCode$phone';
+  }
+
+  void _handleStepAction() {
+    switch (_currentStep) {
+      case 0:
+        if (widget.skipToProfile) {
+          _animateToStep(3);
+        } else {
+          _nextStep();
+        }
+        break;
+      case 1:
+        _onSendOtp();
+        break;
+      case 2:
+        _onVerifyOtp();
+        break;
+      case 3:
+        if (_nameController.text.trim().isEmpty) {
+          _showError('أدخل اسمك الكامل.');
+          return;
+        }
+        _nextStep();
+        break;
+      case 4:
+        _nextStep();
+        break;
+      case 5:
+        _onCompleteProfile();
+        break;
+    }
+  }
+
+  void _onSendOtp() {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      _showError('أدخل رقم الهاتف.');
+      return;
+    }
+    _phoneAuthCubit.verifyPhoneNumber(_normalizePhoneForAuth());
+  }
+
+  void _onVerifyOtp() {
+    final otp = _otpControllers.map((c) => c.text).join();
+    if (otp.length < 4) {
+      _showError('أدخل رمز التحقق بالكامل.');
+      return;
+    }
+    _phoneAuthCubit.verifySmsCode(otp);
+  }
+
+  void _onResendCode() {
+    if (_resendCooldown > 0) return;
+    _phoneAuthCubit.resendCode(_normalizePhoneForAuth());
+  }
+
+  Future<void> _onCompleteProfile() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final authRepo = sl<AuthRepository>();
+      final uid = widget.authenticatedUid ?? authRepo.currentUser?.uid;
+
+      if (uid == null) {
+        _showError('حدث خطأ. حاول تسجيل الدخول مرة أخرى.');
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final updates = <String, dynamic>{
+        'role': _selectedRole,
+        'displayName': _nameController.text.trim(),
+        'isProfileCompleted': true,
+        'lastLoginAt': FieldValue.serverTimestamp(),
+      };
+
+      final email = _emailController.text.trim();
+      if (email.isNotEmpty) {
+        updates['email'] = email;
+      }
+
+      await authRepo.updateFirestoreUser(uid: uid, data: updates);
+
+      if (!mounted) return;
+
+      _routeByRole(_selectedRole);
+    } catch (e) {
+      _showError('فشل حفظ البيانات. حاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _routeByRole(String role) {
+    Widget destination;
+    switch (role) {
+      case 'barber':
+        destination = const MainNavigationWrapper_barber();
+        break;
+      case 'salon_owner':
+        destination = const MainNavigationWrapper_shops();
+        break;
+      default:
+        destination = const MainNavigationWrapper_clint();
+    }
+    Navigator.pushAndRemoveUntil(
+      context,
+      FadeSlideRoute(page: destination),
+      (route) => false,
+    );
+  }
+
+  void _handlePhoneAuthState(PhoneAuthState state) {
+    if (state is PhoneAuthLoading || state is PhoneAuthVerifying) {
+      setState(() => _isLoading = true);
+    } else if (state is PhoneAuthCodeSent) {
+      setState(() => _isLoading = false);
+      if (_currentStep == 1) {
+        _animateToStep(2);
+      }
+      _startCooldownDisplay();
+    } else if (state is PhoneAuthResendCooldown) {
+      setState(() {
+        _resendCooldown = state.secondsRemaining;
+      });
+    } else if (state is PhoneAuthSuccess) {
+      setState(() => _isLoading = false);
+      if (state.user.isProfileCompleted) {
+        _routeByRole(state.user.role);
+      } else {
+        _animateToStep(3);
+      }
+    } else if (state is PhoneAuthAutoVerified) {
+      setState(() => _isLoading = false);
+      if (state.user.isProfileCompleted) {
+        _routeByRole(state.user.role);
+      } else {
+        _animateToStep(3);
+      }
+    } else if (state is PhoneAuthError) {
+      setState(() => _isLoading = false);
+      _showError(state.message);
+    }
+  }
+
+  void _startCooldownDisplay() {
+    _resendCooldown = 60;
+    _cooldownDisplayTimer?.cancel();
+    _cooldownDisplayTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _resendCooldown--;
+        if (_resendCooldown <= 0) {
+          _resendCooldown = 0;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.zain(fontSize: 13, fontWeight: FontWeight.w600),
+          textDirection: TextDirection.rtl,
+        ),
+        backgroundColor: Colors.black,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   static const List<String> _stepTitles = [
@@ -158,64 +363,68 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
+    return BlocListener<PhoneAuthCubit, PhoneAuthState>(
+      bloc: _phoneAuthCubit,
+      listener: (context, state) => _handlePhoneAuthState(state),
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
           backgroundColor: Colors.white,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          systemOverlayStyle: SystemUiOverlayStyle.dark,
-          leading: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: _BackButton(onTap: _prevStep),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            systemOverlayStyle: SystemUiOverlayStyle.dark,
+            leading: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: _BackButton(onTap: _prevStep),
+            ),
+            title: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.3),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: Text(
+                _stepTitles[_currentStep],
+                key: ValueKey(_currentStep),
+                style: GoogleFonts.zain(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+            centerTitle: true,
           ),
-          title: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.3),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
+          body: Column(
+            children: [
+              _StepProgressBar(
+                currentStep: _currentStep,
+                totalSteps: _totalSteps,
               ),
-            ),
-            child: Text(
-              _stepTitles[_currentStep],
-              key: ValueKey(_currentStep),
-              style: GoogleFonts.zain(
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                color: Colors.black,
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _wrapStep(_buildRoleStep()),
+                    _wrapStep(_buildPhoneStep()),
+                    _wrapStep(_buildOtpStep()),
+                    _wrapStep(_buildNameStep()),
+                    _wrapStep(_buildPasswordStep()),
+                    _wrapStep(_buildEmailStep()),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
-          centerTitle: true,
-        ),
-        body: Column(
-          children: [
-            _StepProgressBar(
-              currentStep: _currentStep,
-              totalSteps: _totalSteps,
-            ),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _wrapStep(_buildRoleStep()),
-                  _wrapStep(_buildPhoneStep()),
-                  _wrapStep(_buildOtpStep()),
-                  _wrapStep(_buildNameStep()),
-                  _wrapStep(_buildPasswordStep()),
-                  _wrapStep(_buildEmailStep()),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -238,8 +447,8 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
                 label: _currentStep == _totalSteps - 1
                     ? 'تأكيد وتفعيل الحساب'
                     : 'المتابعة',
-                isLoading: false,
-                onPressed: _nextStep,
+                isLoading: _isLoading,
+                onPressed: _isLoading ? null : _handleStepAction,
               ),
             ],
           ),
@@ -418,7 +627,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
             children: [
               const TextSpan(text: 'أُرسل إلى '),
               TextSpan(
-                text: '$_selectedCountryCode ${_phoneController.text.trim()}',
+                text: _normalizePhoneForDisplay(),
                 style: GoogleFonts.zain(
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
@@ -441,6 +650,12 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
                 } else if (value.isEmpty && i > 0) {
                   FocusScope.of(context).requestFocus(_otpFocusNodes[i - 1]);
                 }
+                if (i == 3 && value.isNotEmpty) {
+                  final otp = _otpControllers.map((c) => c.text).join();
+                  if (otp.length == 4) {
+                    _onVerifyOtp();
+                  }
+                }
               },
             );
           }),
@@ -448,18 +663,32 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
         const SizedBox(height: 20),
         Center(
           child: TextButton(
-            onPressed: () {},
+            onPressed: _resendCooldown > 0 ? null : _onResendCode,
             style: TextButton.styleFrom(
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-            child: Text(
-              'إعادة إرسال الكود',
-              style: GoogleFonts.zain(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
-              ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _resendCooldown > 0
+                  ? Text(
+                      'إعادة الإرسال بعد $_resendCooldown ث',
+                      key: ValueKey('cooldown_$_resendCooldown'),
+                      style: GoogleFonts.zain(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF9E9E9E),
+                      ),
+                    )
+                  : Text(
+                      'إعادة إرسال الكود',
+                      key: const ValueKey('resend_active'),
+                      style: GoogleFonts.zain(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      ),
+                    ),
             ),
           ),
         ),
@@ -696,7 +925,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen>
         const SizedBox(height: 16),
         Center(
           child: TextButton(
-            onPressed: () {},
+            onPressed: _isLoading ? null : _onCompleteProfile,
             style: TextButton.styleFrom(foregroundColor: Colors.black54),
             child: Text(
               'تخطي هذه الخطوة',
@@ -756,9 +985,9 @@ class _BackButton extends StatelessWidget {
       child: Container(
         width: 38,
         height: 38,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          color: const Color(0xFFF7F7F7),
+          color: Color(0xFFF7F7F7),
         ),
         child: const Icon(
           Icons.arrow_back_ios_new_rounded,

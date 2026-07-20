@@ -1,12 +1,7 @@
-// ignore: unnecessary_import
-import 'dart:ui';
-
 import 'package:a7la2y/screens/auth/login/login_screen.dart';
 import 'package:a7la2y/screens/accses_location/widget/minimal_map_background.dart';
 import 'package:a7la2y/services/location_service.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:gap/gap.dart';
 import 'package:google_fonts/google_fonts.dart';
 

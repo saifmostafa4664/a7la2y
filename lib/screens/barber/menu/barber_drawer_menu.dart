@@ -1,3 +1,4 @@
+import 'package:a7la2y/screens/auth/login/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -132,12 +133,12 @@ class BarberDrawerMenu extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(24.0),
-              child: _buildDrawerItem(
-                Icons.logout_rounded,
-                "تسجيل الخروج",
-                () {},
-                isLogout: true,
-              ),
+              child: _buildDrawerItem(Icons.logout_rounded, "تسجيل الخروج", () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
+              }, isLogout: true),
             ),
           ],
         ),

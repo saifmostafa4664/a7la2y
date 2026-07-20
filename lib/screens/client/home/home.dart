@@ -72,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.kanan.a7la2y',
+                    userAgentPackageName: 'com.saifmo.a7la2y',
                   ),
                   MarkerLayer(
                     markers: [

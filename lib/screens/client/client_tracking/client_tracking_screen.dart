@@ -186,7 +186,7 @@ class _clientTrackingScreenState extends State<clientTrackingScreen> {
                             TileLayer(
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.kanan.a7la2y',
+                              userAgentPackageName: 'com.saifmo.a7la2y',
                             ),
                             // Route polyline
                             if (_routePoints.isNotEmpty)

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class SocialLoginButton extends StatefulWidget {
   final String iconAsset;
   final VoidCallback? onTap;
+  final bool isLoading;
 
   const SocialLoginButton({
     super.key,
     required this.iconAsset,
     this.onTap,
+    this.isLoading = false,
   });
 
   @override
@@ -50,15 +52,16 @@ class _SocialLoginButtonState extends State<SocialLoginButton>
 
   @override
   Widget build(BuildContext context) {
+    final bool isActive = widget.onTap != null && !widget.isLoading;
     return Expanded(
       child: GestureDetector(
-        onTapDown: widget.onTap != null ? _onTapDown : null,
-        onTapUp: widget.onTap != null ? _onTapUp : null,
-        onTapCancel: widget.onTap != null ? _onTapCancel : null,
+        onTapDown: isActive ? _onTapDown : null,
+        onTapUp: isActive ? _onTapUp : null,
+        onTapCancel: isActive ? _onTapCancel : null,
         child: ScaleTransition(
           scale: _scaleAnimation,
           child: AnimatedOpacity(
-            opacity: widget.onTap != null ? 1.0 : 0.4,
+            opacity: isActive ? 1.0 : 0.4,
             duration: const Duration(milliseconds: 200),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -71,10 +74,24 @@ class _SocialLoginButtonState extends State<SocialLoginButton>
                 ),
               ),
               child: Center(
-                child: Image.asset(
-                  widget.iconAsset,
-                  width: 24,
-                  height: 24,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: widget.isLoading
+                      ? const SizedBox(
+                          key: ValueKey('social_loader'),
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            color: Colors.black,
+                            strokeWidth: 2.0,
+                          ),
+                        )
+                      : Image.asset(
+                          widget.iconAsset,
+                          key: ValueKey(widget.iconAsset),
+                          width: 24,
+                          height: 24,
+                        ),
                 ),
               ),
             ),

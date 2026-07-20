@@ -151,7 +151,7 @@ class _BarberOrderFlowScreenState extends State<BarberOrderFlowScreen>
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.kanan.a7la2y',
+                    userAgentPackageName: 'com.saifmo.a7la2y',
                   ),
                   if (_routePoints.isNotEmpty)
                     PolylineLayer(

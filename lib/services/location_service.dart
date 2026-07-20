@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:geolocator/geolocator.dart';
 
 class LocationService {
@@ -22,7 +24,8 @@ class LocationService {
 
       return false;
     } catch (e) {
-      print('Error requesting location permission: $e');
+      developer.log('Error requesting location permission: $e',
+          name: 'LocationService');
       return false;
     }
   }
@@ -38,13 +41,15 @@ class LocationService {
       }
 
       if (permission == LocationPermission.deniedForever) {
-        print('Location permissions are permanently denied.');
+        developer.log('Location permissions are permanently denied.',
+            name: 'LocationService');
         return null;
       }
 
       if (permission != LocationPermission.whileInUse &&
           permission != LocationPermission.always) {
-        print('Location permission not granted.');
+        developer.log('Location permission not granted.',
+            name: 'LocationService');
         return null;
       }
 
@@ -52,19 +57,25 @@ class LocationService {
       bool isLocationServiceEnabled =
           await Geolocator.isLocationServiceEnabled();
       if (!isLocationServiceEnabled) {
-        print('Location services are disabled.');
+        developer.log('Location services are disabled.',
+            name: 'LocationService');
         return null;
       }
 
-      // Get current position
+      // Get current position using LocationSettings (non-deprecated API)
+      const locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 10),
+      );
+
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        locationSettings: locationSettings,
       );
 
       return position;
     } catch (e) {
-      print('Error getting current position: $e');
+      developer.log('Error getting current position: $e',
+          name: 'LocationService');
       return null;
     }
   }
@@ -75,7 +86,8 @@ class LocationService {
       final position = await Geolocator.getLastKnownPosition();
       return position;
     } catch (e) {
-      print('Error getting last known position: $e');
+      developer.log('Error getting last known position: $e',
+          name: 'LocationService');
       return null;
     }
   }

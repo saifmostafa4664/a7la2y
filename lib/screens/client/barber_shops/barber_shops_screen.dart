@@ -241,7 +241,7 @@ class _BarberShopsScreenState extends State<BarberShopsScreen> {
           border: Border.all(color: const Color(0xFFEFEFEF)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),

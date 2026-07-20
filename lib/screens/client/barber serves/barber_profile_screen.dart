@@ -2,7 +2,6 @@ import 'package:a7la2y/screens/client/barber%20serves/widget/review_card.dart';
 import 'package:a7la2y/screens/client/barber%20serves/widget/service_card.dart';
 import 'package:a7la2y/screens/client/calendar/booking_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart' show Color;
 import 'package:google_fonts/google_fonts.dart';
 
 class BarberProfileScreen extends StatefulWidget {
@@ -41,7 +40,7 @@ class _BarberProfileScreenState extends State<BarberProfileScreen>
                     leading: Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: CircleAvatar(
-                        backgroundColor: Colors.black.withOpacity(0.4),
+                        backgroundColor: Colors.black.withValues(alpha: 0.4),
                         child: IconButton(
                           icon: const Icon(
                             Icons.arrow_back,
@@ -56,7 +55,7 @@ class _BarberProfileScreenState extends State<BarberProfileScreen>
                       Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: CircleAvatar(
-                          backgroundColor: Colors.black.withOpacity(0.4),
+                          backgroundColor: Colors.black.withValues(alpha: 0.4),
                           child: const Icon(
                             Icons.favorite_border,
                             color: Colors.white,
@@ -311,7 +310,7 @@ class _BarberProfileScreenState extends State<BarberProfileScreen>
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, -4),
                     ),
